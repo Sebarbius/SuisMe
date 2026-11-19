@@ -17,6 +17,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -367,6 +368,9 @@ class MainActivity : Activity() {
     }
 
     private fun updateChrome() {
+        // Écran toujours allumé pendant une séance d'exercices
+        if (current() is RunnerScreen) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val pushed = stack.isNotEmpty()
         header.visibility = if (pushed) View.GONE else View.VISIBLE
         navBar.visibility = if (pushed) View.GONE else View.VISIBLE
