@@ -207,7 +207,7 @@ class CycleScreen(private val a: MainActivity) : Screen {
                 Reminders.schedule(a)
                 refresh()
             })
-            row.addView(View(a), lpW(1f))
+            row.addView(View(a), LinearLayout.LayoutParams(0, 1, 1f))
         }
         val bell = a.smallButton("🔔 $hm", C.LAVENDER) {
             a.pickTime(Cycle.remindHour(a), Cycle.remindMinute(a)) { h, mi ->

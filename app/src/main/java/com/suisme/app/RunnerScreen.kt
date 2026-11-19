@@ -56,9 +56,9 @@ class RunnerScreen(private val a: MainActivity) : Screen {
         // ---- Commandes ----
         val ctr = a.hbox()
         ctr.addView(a.smallButton(if (st.paused) "▶ Reprendre" else "⏸ Pause", C.PEACH) { togglePause() })
-        ctr.addView(a.smallButton("↶ Précédente", C.MUTED) { previous() }, lpWW().apply { leftMargin = a.dp(6) })
+        ctr.addView(a.smallButton("↶ Préc.", C.MUTED) { previous() }, lpWW().apply { leftMargin = a.dp(6) })
         ctr.addView(a.smallButton("⏭ Exo suivant", C.MUTED) { nextExercise() }, lpWW().apply { leftMargin = a.dp(6) })
-        ctr.addView(View(a), lpW(1f))
+        ctr.addView(View(a), LinearLayout.LayoutParams(0, 1, 1f))
         ctr.addView(a.smallButton("✕", C.ROSE) { abandon() })
         b.addView(ctr, lpMW().apply { bottomMargin = a.dp(12) })
 
@@ -283,8 +283,15 @@ class RunnerScreen(private val a: MainActivity) : Screen {
         val ev = Runner.catchUp(a, st, System.currentTimeMillis())
         if (ev != 0) {
             if (Runner.has(ev, Runner.EV_STOP)) Voice.say(a, "Arrêter")
-            if (Runner.has(ev, Runner.EV_START)) Voice.say(a, "Commencer")
-            else if (Runner.has(ev, Runner.EV_REST)) signal()
+            if (Runner.has(ev, Runner.EV_REST)) signal()
+            if (Runner.has(ev, Runner.EV_START)) {
+                if (Runner.has(ev, Runner.EV_REST)) {
+                    // On laisse la mélodie se finir avant « Commencer »
+                    Handler(Looper.getMainLooper()).postDelayed({ Voice.say(a, "Commencer") }, 1500L)
+                } else {
+                    Voice.say(a, "Commencer")
+                }
+            }
             if (Runner.has(ev, Runner.EV_FINISH)) {
                 finish()
                 return
@@ -304,12 +311,7 @@ class RunnerScreen(private val a: MainActivity) : Screen {
     }
 
     private fun signal() {
-        try {
-            val tg = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90)
-            tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 450)
-            Handler(Looper.getMainLooper()).postDelayed({ tg.release() }, 800L)
-        } catch (t: Throwable) {
-        }
+        Sound.play(a)
         try {
             val v = a.getSystemService(Vibrator::class.java)
             v?.vibrate(VibrationEffect.createOneShot(350L, VibrationEffect.DEFAULT_AMPLITUDE))

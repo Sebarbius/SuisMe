@@ -9,12 +9,26 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.net.Uri
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import java.time.LocalDate
 import java.time.ZoneId
+
+/** Mélodie de fin de repos (carillon). */
+object Sound {
+    fun play(c: Context) {
+        try {
+            val mp = MediaPlayer.create(c.applicationContext, R.raw.rest_end) ?: return
+            mp.setOnCompletionListener { it.release() }
+            mp.start()
+        } catch (t: Throwable) {
+        }
+    }
+}
 
 object App {
     @Volatile
@@ -23,7 +37,7 @@ object App {
 
 object Notifier {
     const val CH_REMIND = "rappels"
-    const val CH_REST = "repos"
+    const val CH_REST = "repos_melodie"
     const val ID_PALP = 10
     const val ID_REST = 20
 
@@ -34,11 +48,16 @@ object Notifier {
         val r = NotificationChannel(CH_REMIND, "Rappels santé", NotificationManager.IMPORTANCE_HIGH)
         r.description = "Auto-palpation et rendez-vous médicaux"
         n.createNotificationChannel(r)
+        // Ancien canal (bip standard) remplacé par celui avec la mélodie
+        try {
+            n.deleteNotificationChannel("repos")
+        } catch (t: Throwable) {
+        }
         val s = NotificationChannel(CH_REST, "Fin des repos", NotificationManager.IMPORTANCE_HIGH)
-        s.description = "Signal de fin de repos pendant une séance"
+        s.description = "Mélodie de fin de repos pendant une séance"
         s.enableVibration(true)
         s.setSound(
-            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+            Uri.parse("android.resource://" + c.packageName + "/" + R.raw.rest_end),
             AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build()
         )
         n.createNotificationChannel(s)
@@ -195,6 +214,7 @@ class AlarmReceiver : BroadcastReceiver() {
             val s = Runner.load(context) ?: return
             val ev = Runner.catchUp(context, s, System.currentTimeMillis())
             val words = ArrayList<String>()
+            val later = ArrayList<String>()
             if (Runner.has(ev, Runner.EV_STOP)) words.add("Arrêter")
             if (Runner.has(ev, Runner.EV_FINISH)) {
                 Runner.finish(context, s, true)
@@ -202,12 +222,23 @@ class AlarmReceiver : BroadcastReceiver() {
                 Notifier.sessionDone(context)
             } else {
                 Runner.save(context, s)
-                if (Runner.has(ev, Runner.EV_START)) words.add("Commencer")
-                else if (Runner.has(ev, Runner.EV_REST)) Notifier.restEnd(context, Runner.nextLabel(context, s))
+                if (Runner.has(ev, Runner.EV_START)) {
+                    if (Runner.has(ev, Runner.EV_REST)) {
+                        // Fin de repos + départ auto : mélodie, puis « Commencer »
+                        Sound.play(context)
+                        later.add("Commencer")
+                    } else {
+                        words.add("Commencer")
+                    }
+                } else if (Runner.has(ev, Runner.EV_REST)) {
+                    Notifier.restEnd(context, Runner.nextLabel(context, s))
+                }
             }
-            if (words.isNotEmpty()) {
+            if (words.isNotEmpty() || later.isNotEmpty()) {
                 val pr = goAsync()
                 for (w in words) Voice.say(context, w)
+                if (later.isNotEmpty()) Voice.init(context)
+                Handler(Looper.getMainLooper()).postDelayed({ for (w in later) Voice.say(context, w) }, 1500L)
                 Handler(Looper.getMainLooper()).postDelayed({
                     try {
                         pr.finish()
